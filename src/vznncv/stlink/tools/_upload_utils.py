@@ -1,43 +1,43 @@
 import enum
 import logging
-import os
 import re
 import subprocess
-from os.path import isfile, join, abspath, splitext
+from os.path import join
 
 import vznncv.stlink.tools._devices_info as _devices_info
+from ._search_utils import resolve_filepath
 from ._utils import format_command
 
 logger = logging.getLogger(__name__)
 
 
-def _find_file_in_dir(dir_path, extension):
-    target = None
-    logger.info("Try to find '{}' file in the folder '{}'".format(extension, dir_path))
-    filenames = [filename for filename in os.listdir(dir_path) if splitext(filename)[1].lower() == extension]
-    if not filenames:
-        logger.info("Cannot find files with extension '{}'".format(extension))
-    elif len(filenames) == 1:
-        target = join(dir_path, filenames[0])
-    else:
-        logger.info("Multiple files with extension '{}' are found: {}. But we need only one file"
-                    .format(extension, ', '.join(filenames)))
-
-    if target is not None:
-        logger.info("Found '{}'".format(target))
-    return target
-
-
-def _find_file(file_path=None, alternative_dir=None, extension=None):
-    if file_path is not None:
-        if isfile(file_path):
-            target = abspath(file_path)
-        else:
-            target = _find_file_in_dir(file_path, extension)
-    else:
-        target = _find_file_in_dir(alternative_dir, extension)
-
-    return target
+# def _find_file_in_dir(dir_path, extension):
+#     target = None
+#     logger.info("Try to find '{}' file in the folder '{}'".format(extension, dir_path))
+#     filenames = [filename for filename in os.listdir(dir_path) if splitext(filename)[1].lower() == extension]
+#     if not filenames:
+#         logger.info("Cannot find files with extension '{}'".format(extension))
+#     elif len(filenames) == 1:
+#         target = join(dir_path, filenames[0])
+#     else:
+#         logger.info("Multiple files with extension '{}' are found: {}. But we need only one file"
+#                     .format(extension, ', '.join(filenames)))
+#
+#     if target is not None:
+#         logger.info("Found '{}'".format(target))
+#     return target
+#
+#
+# def _find_file(file_path=None, alternative_dir=None, extension=None):
+#     if file_path is not None:
+#         if isfile(file_path):
+#             target = abspath(file_path)
+#         else:
+#             target = _find_file_in_dir(file_path, extension)
+#     else:
+#         target = _find_file_in_dir(alternative_dir, extension)
+#
+#     return target
 
 
 def call_openocd(args):
@@ -146,12 +146,19 @@ def _detect_interface(hla_serial=None):
 
 
 def upload_app(*, elf_file, openocd_config, project_dir, openocd_path=None, hla_serial=None, verbose=False):
-    elf_file = _find_file(elf_file, join(project_dir, 'build'), '.elf')
-    if elf_file is None:
-        raise ValueError("Cannot find .elf file")
-    cfg_file = _find_file(openocd_config, project_dir, '.cfg')
-    if cfg_file is None:
-        raise ValueError("Cannot openocd configuration file")
+    logger.info("Determine *.elf file location")
+    elf_file = resolve_filepath(
+        explicit_filepath=elf_file,
+        alternative_dirs=[join(project_dir, 'build'), join(project_dir, 'BUILD')],
+        extension='.elf',
+        max_depth=2
+    )
+
+    cfg_file = resolve_filepath(
+        explicit_filepath=openocd_config,
+        alternative_dirs=[project_dir],
+        extension='.cfg'
+    )
 
     # prepare openocd command arguments
     config_args = [cfg_file]
