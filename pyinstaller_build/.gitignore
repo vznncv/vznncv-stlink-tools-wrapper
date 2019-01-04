@@ -1,0 +1,4 @@
+# ignore all except entry point script
+*
+
+!entry_point.py

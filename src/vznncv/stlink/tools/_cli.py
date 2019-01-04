@@ -1,13 +1,6 @@
-from collections import OrderedDict
+import logging
 
 import click
-import json
-import logging
-import os
-import traceback
-
-import vznncv.stlink.tools._devices_info as _devices_info
-import vznncv.stlink.tools._upload_utils as _upload_utils
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +74,10 @@ def upload_app(ctx, elf_file, openocd_config, project_dir, openocd_path, hla_ser
 
     In case when you use multiple stlink adapters, you should specify <hla-serial> to use correct stlink device.
     """
+    import vznncv.stlink.tools._upload_utils as _upload_utils
+    import os
+    import traceback
+
     if project_dir is None:
         project_dir = os.getcwd()
 
@@ -117,6 +114,10 @@ def show_devices(format):
     - device bus no
     - device address
     """
+    import vznncv.stlink.tools._devices_info as _devices_info
+    import json
+    from collections import OrderedDict
+
     device_infos = _devices_info.get_stlink_devices()
     if format == 'text':
         for device_info in device_infos:
