@@ -2,9 +2,11 @@ import enum
 import logging
 import re
 import subprocess
+import time
 from os.path import join
 
 import vznncv.stlink.tools._devices_info as _devices_info
+
 from ._search_utils import resolve_filepath
 from ._utils import format_command
 
@@ -97,8 +99,11 @@ def _call_openocd_and_check_results(configs, commands, verbose=False, openocd_pa
         command_args.extend(['--command', command])
 
     logger.info("Run: {}".format(format_command(command_args)))
-    logger.info("================ openocd logs ================")
+    cmd_start = time.time()
     ret_code, stdout, stderr = call_openocd(command_args)
+    cmd_time = time.time() - cmd_start
+    logger.info("Command execution time: {:.2f} seconds".format(cmd_time))
+    logger.info("================ openocd logs ================")
     for log_level, message in _parse_openocd_logs(stderr):
         logger.log(log_level, message)
     if stdout.strip():
