@@ -10,7 +10,7 @@ The project requires python 3.6.
 You can install the latest version from github:
 
 ```
-pip install git+https://github.com/vznncv/vznncv-cubemx-tools
+pip install git+https://github.com/vznncv/vznncv-stlink-tools
 ```
 
 ## Basic usage
