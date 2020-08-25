@@ -7,7 +7,7 @@ from os.path import join
 
 import vznncv.stlink.tools._devices_info as _devices_info
 
-from ._search_utils import resolve_filepath
+from ._search_utils import resolve_filepath, FileNotFound, MultipleFilesAreFound
 from ._utils import format_command
 
 logger = logging.getLogger(__name__)
@@ -159,11 +159,19 @@ def upload_app(*, elf_file, openocd_config, project_dir, openocd_path=None, hla_
         max_depth=2
     )
 
-    cfg_file = resolve_filepath(
-        explicit_filepath=openocd_config,
-        alternative_dirs=[project_dir],
-        extension='.cfg'
-    )
+    try:
+        cfg_file = resolve_filepath(
+            explicit_filepath=openocd_config,
+            alternative_dirs=[project_dir],
+            extension='.cfg',
+            exclude_patterns=['TESTS', 'mbed-os']
+        )
+    except FileNotFound as e:
+        raise ValueError(f"Cannot find openocd files. "
+                         f"Please put *.cgf for your mcu to project directory \"{project_dir}\"") from e
+    except MultipleFilesAreFound as e:
+        raise ValueError(f"Found multiple openocd files in the project directory \"{project_dir}\". "
+                         f"Please leave only one openocd file or specify it explicitly") from e
 
     # prepare openocd command arguments
     config_args = [cfg_file]
