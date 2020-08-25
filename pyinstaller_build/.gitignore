@@ -1,4 +1,6 @@
-# ignore all except entry point script
-*
-
-!entry_point.py
+# ingore temporary files
+/build
+/dist
+*.spec
+/vznncv-stlink
+/vznncv-stlink.exe
