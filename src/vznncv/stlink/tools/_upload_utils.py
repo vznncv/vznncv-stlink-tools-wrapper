@@ -3,7 +3,7 @@ import logging
 import re
 import subprocess
 import time
-from os.path import join
+import os.path
 
 import vznncv.stlink.tools._devices_info as _devices_info
 
@@ -152,12 +152,20 @@ def _detect_interface(hla_serial=None):
 
 def upload_app(*, elf_file, openocd_config, project_dir, openocd_path=None, hla_serial=None, verbose=False):
     logger.info("Determine *.elf file location")
-    elf_file = resolve_filepath(
-        explicit_filepath=elf_file,
-        alternative_dirs=[join(project_dir, 'build'), join(project_dir, 'BUILD')],
-        extension='.elf',
-        max_depth=2
-    )
+    if os.path.isdir(elf_file):
+        elf_file = resolve_filepath(
+            explicit_filepath=None,
+            alternative_dirs=[elf_file],
+            extension='.elf',
+            max_depth=2
+        )
+    else:
+        elf_file = resolve_filepath(
+            explicit_filepath=elf_file,
+            alternative_dirs=[os.path.join(project_dir, 'build'), os.path.join(project_dir, 'BUILD')],
+            extension='.elf',
+            max_depth=2
+        )
 
     try:
         cfg_file = resolve_filepath(

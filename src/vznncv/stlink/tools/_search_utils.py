@@ -143,6 +143,6 @@ def resolve_filepath(explicit_filepath=None, alternative_dirs=None, extension=No
     elif extension is None:
         raise FileNotFound("No files are found")
     else:
-        raise FileNotFound("No file with extension *{} is found".format(extension))
+        raise FileNotFound("No file with extension *{} is not found".format(extension))
 
     return result_files[0]

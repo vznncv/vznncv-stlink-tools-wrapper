@@ -22,6 +22,7 @@ setup(
     classifiers=[
         'Programming Language :: Python :: 3.6',
     ],
+    python_requires='~=3.6',
     description="CMake project generator from STM32CubeMX project",
     long_description=readme,
     long_description_content_type="text/markdown",
