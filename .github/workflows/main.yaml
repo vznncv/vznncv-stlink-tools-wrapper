@@ -1,0 +1,79 @@
+on: [ push, pull_request ]
+jobs:
+  # tests with linux
+  tests:
+    strategy:
+      matrix:
+        include:
+          - tox_env: py36
+            base_image: python:3.6
+          - tox_env: py37
+            base_image: python:3.7
+          - tox_env: py38
+            base_image: python:3.8
+          - tox_env: py39
+            base_image: python:3.9
+          - tox_env: flake8
+            base_image: python:3.6
+    runs-on: ubuntu-latest
+    container: "${{ matrix.base_image }}"
+    steps:
+      - uses: actions/checkout@v2
+      - run: pip install tox
+      - run: tox -e "${{ matrix.tox_env }}"
+
+  # build executable
+  build-executable-linux:
+    needs: tests
+    runs-on: ubuntu-latest
+    container: ubuntu:16.04
+    env:
+      PYTHON_VERSION: "3.6.13"
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install python
+        run: |
+          apt-get update
+          apt-get install -y curl git bash build-essential libc6-dev libffi-dev zlib1g-dev libbz2-dev libreadline-dev libssl-dev libsqlite3-dev
+          curl https://pyenv.run | bash
+          export PATH="$HOME/.pyenv/bin:$PATH"
+          eval "$(pyenv init -)"
+          export PYTHON_CONFIGURE_OPTS="--enable-shared"
+          pyenv install "$PYTHON_VERSION"
+      - name: Build executable
+        run: |
+          export PATH="$HOME/.pyenv/versions/$PYTHON_VERSION/bin:$PATH"
+          apt-get install -y libusb-1.0
+          pip install tox
+          tox -e pyinstaller
+      - uses: actions/upload-artifact@v2
+        with:
+          name: linux-build
+          path: pyinstaller_build/dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # test executable
+  test-executable-linux:
+    runs-on: ubuntu-latest
+    needs: build-executable-linux
+    strategy:
+      matrix:
+        base_image: [ "ubuntu:18.04", "ubuntu:20.04" ]
+    env:
+      LC_ALL: "C.UTF-8"
+      LANG: "C.UTF-8"
+    container: "${{ matrix.base_image }}"
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: linux-build
+          path: pyinstaller_build/dist
+      - name: Install test dependecies
+        run: |
+          apt-get update
+          apt-get install -y python3 python3-pytest
+      - name: Run tests
+        run: python3 test_build.py
+        working-directory: pyinstaller_build
