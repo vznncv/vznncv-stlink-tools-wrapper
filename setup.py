@@ -1,9 +1,9 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 import re
-from setuptools import setup, find_packages
 
-project_name = 'vznncv-stlink-tools'
+from setuptools import setup, find_namespace_packages
+
+project_name = 'vznncv-stlink-tools-wrapper'
 
 with open('README.md') as readme_file:
     readme = readme_file.read()
@@ -29,16 +29,17 @@ setup(
     license='MIT',
     include_package_data=True,
     name=project_name,
-    packages=find_packages(where='src'),
+    packages=find_namespace_packages(where='src'),
     package_dir={'': 'src'},
     entry_points={
         'console_scripts': [
-            'vznncv-stlink = vznncv.stlink.tools._cli:main',
+            'vznncv-stlink = vznncv.stlink.tools.wrapper._cli:main',
         ]
     },
     install_requires=[
         'click',
-        'pyusb'
+        'pyusb',
+        'cached_property'
     ],
     tests_require=test_requirements,
     version=__version__

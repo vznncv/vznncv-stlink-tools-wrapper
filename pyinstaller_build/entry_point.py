@@ -1,3 +1,3 @@
-import vznncv.stlink.tools._cli
+import vznncv.stlink.tools.wrapper._cli
 
-vznncv.stlink.tools._cli.main()
+vznncv.stlink.tools.wrapper._cli.main()

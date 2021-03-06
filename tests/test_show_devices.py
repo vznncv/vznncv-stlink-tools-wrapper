@@ -1,86 +1,63 @@
 import json
-from click.testing import CliRunner
-from hamcrest import assert_that, equal_to, string_contains_in_order
+from collections import namedtuple
 from unittest.mock import patch
 
-from testing_utils import BaseTestCase as TestCase
-from vznncv.stlink.tools._cli import main
-from vznncv.stlink.tools._devices_info import DeviceInfo
+import pytest
+from click.testing import CliRunner
+from hamcrest import assert_that, string_contains_in_order, contains_inanyorder
+
+from vznncv.stlink.tools.wrapper._cli import main
+from testing_utils import DeviceStub
 
 
-class ShowDevicesTestCase(TestCase):
-    def setUp(self):
-        super().setUp()
-        self.runner = CliRunner()
+@pytest.fixture
+def no_usb_devices():
+    with patch('usb.core.find', autospec=True) as find_mock:
+        find_mock.return_value = []
+        yield
 
-        self.connected_stlink_devices = []
 
-        def get_stlink_devices_stub():
-            for stlink_device in self.connected_stlink_devices:
-                if not isinstance(stlink_device, DeviceInfo):
-                    raise ValueError('connected_stlink_devices contains non-DeviceInfo object. Please check test.')
-            return self.connected_stlink_devices
+def test_no_usb_devices_text(no_usb_devices):
+    cli_runner = CliRunner(mix_stderr=False)
+    result = cli_runner.invoke(main, ['show-devices'])
+    assert result.exit_code == 0
+    assert result.stdout.strip() == ''
 
-        self.add_patch(patch('vznncv.stlink.tools._devices_info.get_stlink_devices', new=get_stlink_devices_stub))
 
-    def test_show_nothing_human(self):
-        self.connected_stlink_devices = []
-        result = self.runner.invoke(main, ['show-devices'])
+def test_no_usb_devices_json(no_usb_devices):
+    cli_runner = CliRunner(mix_stderr=False)
+    result = cli_runner.invoke(main, ['show-devices', '--format', 'json'])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == []
 
-        assert_that(result.exit_code, equal_to(0))
-        assert_that(result.output.strip(), equal_to(''))
 
-    def test_show_nothing_json(self):
-        self.connected_stlink_devices = []
-        result = self.runner.invoke(main, ['show-devices', '--format', 'json'])
+@pytest.fixture
+def dummy_usb_devices():
+    with patch('usb.core.find', autospec=True) as find_mock:
+        find_mock.return_value = [
+            DeviceStub(idVendor=0x0BDA, idProduct=0x0411, serial_number=None),
+            # '34006a063141323910300243'
+            DeviceStub(idVendor=0x0483, idProduct=0x3748, serial_number=b'4\x00j\x061A29\x100\x02C'.decode('utf-8')),
+            DeviceStub(idVendor=0x0483, idProduct=0x374e, serial_number='002F003D3438510B34313939')
+        ]
+        yield
 
-        assert_that(result.exit_code, equal_to(0))
-        data = json.loads(result.output)
-        assert_that(data, equal_to([]))
 
-    def get_test_device_info(self):
-        return [DeviceInfo(
-            name='STMicroelectronics ST-LINK/V2.1',
-            type='st-link v2.1',
-            vendor_id=0x0483,
-            product_id=0x374B,
-            hla_serial='123',
-            hla_serial_hex='\\x31\\x32\\x33',
-            bus=1,
-            address=1
-        ), DeviceInfo(
-            name='STMicroelectronics ST-LINK/V2',
-            type='st-link v2',
-            vendor_id=0x0483,
-            product_id=0x3748,
-            hla_serial='121',
-            hla_serial_hex='\\x31\\x32\\x31',
-            bus=1,
-            address=1
-        ), ]
+def test_usb_devices_text(dummy_usb_devices):
+    cli_runner = CliRunner(mix_stderr=False)
+    result = cli_runner.invoke(main, ['show-devices'])
+    assert result.exit_code == 0
+    assert_that(result.stdout, string_contains_in_order(
+        'ST-Link V2', '0x0483', '0x3748', '34006A063141323910300243',
+        'ST-Link V3E', '0x0483', '0x374E', '002F003D3438510B34313939'
+    ))
 
-    def test_show_devices_human(self):
-        self.connected_stlink_devices = self.get_test_device_info()
-        result = self.runner.invoke(main, ['show-devices'])
 
-        lines_to_match = []
-        for stlink_device in self.connected_stlink_devices:
-            lines_to_match.append(stlink_device.name)
-            lines_to_match.extend(['vendor id', '0x{:04X}'.format(stlink_device.vendor_id)])
-            lines_to_match.extend(['product id', '0x{:04X}'.format(stlink_device.product_id)])
-            lines_to_match.extend(['hla serial', stlink_device.hla_serial])
-            lines_to_match.extend(['hla serial (hex)', stlink_device.hla_serial_hex])
-
-        assert_that(result.exit_code, equal_to(0))
-        assert_that(result.output, string_contains_in_order(*lines_to_match))
-
-    def test_show_devices_json(self):
-        self.connected_stlink_devices = self.get_test_device_info()
-        result = self.runner.invoke(main, ['show-devices', '--format', 'json'])
-
-        expected_data = [dict(zip(stlink_device._fields, stlink_device)) for stlink_device in
-                         self.connected_stlink_devices]
-
-        assert_that(result.exit_code, equal_to(0))
-        data = json.loads(result.output)
-        assert_that(data, equal_to(expected_data))
+def test_usb_devices_json(dummy_usb_devices):
+    cli_runner = CliRunner(mix_stderr=False)
+    result = cli_runner.invoke(main, ['show-devices', '--format', 'json'])
+    assert result.exit_code == 0
+    assert_that(json.loads(result.stdout), contains_inanyorder(
+        {'name': 'ST-Link V2', 'vendor_id': 1155, 'product_id': 14152, 'hla_serial': '34006A063141323910300243'},
+        {'name': 'ST-Link V3E', 'vendor_id': 1155, 'product_id': 14158, 'hla_serial': '002F003D3438510B34313939'}
+    ))

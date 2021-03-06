@@ -2,7 +2,7 @@
 # helper script to build standalone executable file with a pyinstaller
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-PROGRAM_NAME="vznncv-stlink"
+PROGRAM_NAME="vznncv-stlink-tools-wrapper"
 PROJECT_SRC=$(realpath "$SCRIPT_DIR/../src")
 DIST_DIR="$SCRIPT_DIR/dist"
 
