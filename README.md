@@ -2,6 +2,16 @@
 
 Helper wrapper around other stlink tools to simplify their integration with IDE.
 
+## Installation
+
+You can download single executable file from
+GitHub [release page](https://github.com/vznncv/vznncv-stlink-tools-wrapper/releases)
+or install application into python environment (python 3.6 or higher is required):
+
+```
+pip install git+https://github.com/vznncv/vznncv-stlink-tools-wrapper
+```
+
 ## Usage
 
 1. Show connected ST-Link devices:

@@ -1,5 +1,6 @@
 on: [ push, pull_request ]
 jobs:
+
   tests:
     strategy:
       matrix:
@@ -102,3 +103,60 @@ jobs:
       - name: Run tests
         run: python test_build.py
         working-directory: pyinstaller_build
+
+  check_release_tag:
+    runs-on: ubuntu-latest
+    outputs:
+      is_release_tag: "${{ steps.check_release_tag.outputs.is_release_tag }}"
+    steps:
+      - id: check_release_tag
+        run: |
+          if echo "$GITHUB_REF" | grep -q -E '^refs/tags/v[0-9]+\.[0-9]+\.[0-9]$'; then
+              echo "::set-output name=is_release_tag::1"
+          else
+              echo "::set-output name=is_release_tag::0"
+          fi
+
+  release:
+    needs: [ "test-executable-linux", "test-executable-windows", "check_release_tag" ]
+    runs-on: ubuntu-latest
+    if: needs.check_release_tag.outputs.is_release_tag == '1'
+    env:
+      BASE_ARTIFACT_NAME: vznncv-stlink-tools-wrapper
+      RELEASE_ARTIFACTS_PATH: "${{ github.workspace }}/artifact_releases"
+      RELEASE_NOTES_PATH: "${{ github.workspace }}/RELEASE_NOTES.md"
+    steps:
+      # download source code and artifacts
+      - uses: actions/checkout@v2
+        with:
+          path: source
+      - uses: actions/download-artifact@v2
+        with:
+          name: windows-build
+          path: windows_build
+      - uses: actions/download-artifact@v2
+        with:
+          name: linux-build
+          path: linux_build
+      # prepare release files
+      - name: Extaract release notes
+        id: extract-release-note
+        uses: "ffurrer2/extract-release-notes@24e8a9a2bcc4bacc33aa54fd952da7d3a7f28db4" # v1.5.0
+        with:
+          changelog_file: source/CHANGELOG.md
+          release_notes_file: "${{ env.RELEASE_NOTES_PATH }}"
+      - name: Prepare release artifacts
+        run: |
+          mkdir "${RELEASE_ARTIFACTS_PATH}"
+          (cd linux_build && chmod +x * && zip "${RELEASE_ARTIFACTS_PATH}/${BASE_ARTIFACT_NAME}-linux-x64.zip" *)
+          (cd windows_build && chmod +x * && zip "${RELEASE_ARTIFACTS_PATH}/${BASE_ARTIFACT_NAME}-windows-x64.zip" *)
+      # create release
+      - name: Release
+        uses: "softprops/action-gh-release@affa18ef97bc9db20076945705aba8c516139abd" # v1.*
+        with:
+          body_path: "${{ env.RELEASE_NOTES_PATH }}"
+          files: |
+            ${{ env.RELEASE_ARTIFACTS_PATH }}/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
