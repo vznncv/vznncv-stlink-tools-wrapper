@@ -1,7 +1,6 @@
 """
 Helper project to detect stlink devices.
 """
-import re
 from typing import NamedTuple, List
 
 import usb.core
@@ -33,14 +32,21 @@ class StLinkDevice:
         self.dev: usb.core.Device = dev
         self.type: StLinkDeviceType = type
 
-    _SERIAL_NUMBER_RE = re.compile(r'[0-9a-fA-F]+')
-
     @cached_property
     def serial_number(self):
         serial_number = self.dev.serial_number
-        m = self._SERIAL_NUMBER_RE.search(serial_number)
-        if m is None or (m.end() - m.start()) != 24:
+
+        if len(serial_number) == 12:
+            # invalid STLink serial number due stlink bug. Try to fix it
             serial_number = ''.join(["%.2x" % ord(c) for c in list(serial_number)])
+
+        serial_number = serial_number.upper()
+        if len(serial_number) != 24:
+            raise ValueError(
+                f"Invalid serial number: \"{serial_number}\". Expected 24 symbols, "
+                f"but it has ({len(serial_number)}) symbols"
+            )
+
         return serial_number.upper()
 
     @cached_property

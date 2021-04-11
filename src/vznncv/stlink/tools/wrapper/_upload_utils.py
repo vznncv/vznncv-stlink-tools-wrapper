@@ -133,7 +133,15 @@ def _upload_app_with_openocd(*, project_dir: str, elf_file: str, stlink_device: 
     command_args.extend(['--file', openocd_config])
     if len(stlink_device.serial_number) != 24:
         raise ValueError(f"Invalid serial number length: {stlink_device.serial_number}")
-    openocd_hla_serial = ''.join(f'\\x{g[0].upper()}{g[1].upper()}' for g in _grouper(stlink_device.serial_number, 2))
+    openocd_hla_serial_codes = []
+    for g in _grouper(stlink_device.serial_number, 2):
+        serial_code = int(f'{g[0]}{g[1]}', 16)
+        # openocd hla bug workaround: replace all non-ascii symbols by ? (0x3F)
+        if serial_code > 0x7F:
+            serial_code = 0x3F
+        openocd_hla_serial_codes.append(serial_code)
+
+    openocd_hla_serial = ''.join(f'\\x{serial_code:02X}' for serial_code in openocd_hla_serial_codes)
     command_args.extend(['--command', f'hla_serial "{openocd_hla_serial}"'])
     command_args.extend(['--command', f'program "{elf_file}" verify reset exit'])
 
