@@ -1,11 +1,14 @@
 import itertools
 import logging
 import os.path
+import re
 import shlex
 import shutil
 import subprocess
 import sys
-from typing import Optional
+from typing import Optional, Tuple
+
+from cached_property import cached_property
 
 from ._search_utils import resolve_elf_file_location, resolve_openocd_config_file
 from ._stlink_utils import get_stlink_devices, StLinkDevice
@@ -119,29 +122,67 @@ def _grouper(iterable, n, fillvalue=None):
     return itertools.zip_longest(*args, fillvalue=fillvalue)
 
 
+class _OpenOCDCompat:
+    """
+    Helper wrapper for compatibility with different openocd versions.
+    """
+
+    def __init__(self, openocd_path):
+        self._openocd_path = openocd_path
+
+    _VERSION_RE = re.compile(r'\bv?(?P<version>\d+\.\d+\.+\d+)\b')
+
+    @cached_property
+    def openocd_version(self) -> Tuple[int, ...]:
+        try:
+            openocd_version_info = subprocess.check_output(
+                [self._openocd_path, '--version'],
+                encoding='utf-8', stderr=subprocess.STDOUT
+            )
+        except Exception as e:
+            raise ValueError("Fail to resolve openocd version") from e
+        m = self._VERSION_RE.search(openocd_version_info)
+        if m is None:
+            raise ValueError(f"Fail to resolve openocd version. Cannot parse openocd output:\n\n{openocd_version_info}")
+        return tuple(int(item) for item in m.group('version').split('.'))
+
+    def get_openocd_hla_serial(self, stlink_device: StLinkDevice) -> str:
+        if len(stlink_device.serial_number) != 24:
+            raise ValueError(f"Invalid serial number length: {stlink_device.serial_number}")
+
+        if self.openocd_version < (0, 11):
+            # openocd 0.10 and lower
+            openocd_hla_serial_codes = []
+            # convert hla_serial to openocd format
+            for g in _grouper(stlink_device.serial_number, 2):
+                serial_code = int(f'{g[0]}{g[1]}', 16)
+                # openocd hla bug workaround: replace all non-ascii symbols by ? (0x3F)
+                if serial_code > 0x7F:
+                    serial_code = 0x3F
+                openocd_hla_serial_codes.append(serial_code)
+            openocd_hla_serial = ''.join(f'\\x{serial_code:02X}' for serial_code in openocd_hla_serial_codes)
+        else:
+            # openocd 0.11 and higher
+            openocd_hla_serial = stlink_device.serial_number
+
+        return openocd_hla_serial
+
+
 def _upload_app_with_openocd(*, project_dir: str, elf_file: str, stlink_device: StLinkDevice, verbose: bool,
                              openocd_path: str,
                              openocd_config: Optional[str]):
     # resolve openocd configuration
     openocd_config = resolve_openocd_config_file(project_dir=project_dir, config_path=openocd_config)
+    openocd_compat = _OpenOCDCompat(openocd_path)
     logger.info(f"OpenOCD configuration file: {openocd_config}")
 
     # prepare OpenOCD command
     command_args = [openocd_path]
     if verbose:
-        command_args.extend(['--debug', '3'])
+        command_args.extend(['--debug'])
     command_args.extend(['--file', openocd_config])
-    if len(stlink_device.serial_number) != 24:
-        raise ValueError(f"Invalid serial number length: {stlink_device.serial_number}")
-    openocd_hla_serial_codes = []
-    for g in _grouper(stlink_device.serial_number, 2):
-        serial_code = int(f'{g[0]}{g[1]}', 16)
-        # openocd hla bug workaround: replace all non-ascii symbols by ? (0x3F)
-        if serial_code > 0x7F:
-            serial_code = 0x3F
-        openocd_hla_serial_codes.append(serial_code)
 
-    openocd_hla_serial = ''.join(f'\\x{serial_code:02X}' for serial_code in openocd_hla_serial_codes)
+    openocd_hla_serial = openocd_compat.get_openocd_hla_serial(stlink_device)
     command_args.extend(['--command', f'hla_serial "{openocd_hla_serial}"'])
     command_args.extend(['--command', f'program "{elf_file}" verify reset exit'])
 
